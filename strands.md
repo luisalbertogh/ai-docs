@@ -104,6 +104,37 @@ Building trusted agents requires deep visibility and rigorous safety controls.
   - **Evaluation:** Built-in "LLM-as-a-Judge" metrics for automated quality assessments (Helpfulness, Correctness, etc.).
   - **Safety & Security:** Integration with **Amazon Bedrock Guardrails** and **AgentCore Policy (Cedar)** to enforce runtime boundaries.
 
+### Evaluation in Strands
+
+Strands ships a dedicated evaluation package (`strands-agents-evals`) that provides a structured, LLM-as-a-judge framework to assess agent quality at multiple levels of granularity.
+
+**Core concepts:**
+
+- **Cases and Experiments** — test inputs are defined as `Case` objects and grouped into `Experiment` runs; each experiment executes one or more evaluators against the agent's responses and traces.
+- **Evaluation levels** — evaluators operate at three scopes: `OUTPUT_LEVEL` (single response), `TRACE_LEVEL` (turn-by-turn tool and model calls), and `SESSION_LEVEL` (full conversation goal achievement).
+- **Structured results** — every evaluator returns a typed `EvaluationOutput` with a numeric score, a pass/fail boolean, and a reasoning explanation.
+
+**Built-in evaluators:**
+
+| Evaluator | Level | What it measures |
+| --- | --- | --- |
+| `OutputEvaluator` | Output | Subjective response quality via a custom rubric (safety, tone, relevance, completeness) |
+| `HelpfulnessEvaluator` | Trace | Whether the response effectively addressed the user's needs |
+| `FaithfulnessEvaluator` | Trace | Hallucination detection — whether claims are grounded in the conversation history |
+| `ToolSelectionAccuracyEvaluator` | Trace | Whether the correct tools were selected at the right points |
+| `ToolParameterAccuracyEvaluator` | Trace | Whether tool arguments were derived from context rather than fabricated |
+| `TrajectoryEvaluator` | Session | Quality of the agent's multi-step reasoning and action sequence |
+| `InteractionsEvaluator` | Session | Message flow and dependencies in multi-agent scenarios |
+| `GoalSuccessRateEvaluator` | Session | End-to-end success — whether the user's overall goal was achieved |
+
+**Key capabilities:**
+
+- **Remote evaluation** — traces from a deployed AgentCore Runtime agent can be fetched via `CloudWatchProvider` or `LangfuseProvider` and evaluated post-hoc, without re-running the agent.
+- **ExperimentGenerator** — an LLM-powered utility that automatically generates test cases and evaluation rubrics from a description of the agent's purpose.
+- **Simulators** — generate synthetic multi-turn conversations to stress-test agent behavior before going to production.
+- **Custom evaluators** — extend the base `Evaluator` class to implement domain-specific scoring logic.
+- **OpenTelemetry integration** — evaluation feeds directly off the same OTel traces used for observability; the `StrandsInMemorySessionMapper` converts spans into typed session objects (`AgentInvocationSpan`, `InferenceSpan`, `ToolExecutionSpan`) that evaluators consume.
+
 ## Getting Started from Scratch (Python)
 
 ### 1. Installation
@@ -144,7 +175,21 @@ response = agent.invoke("What is 1234 * 5678?")
 print(response.content)
 ```
 
-## Developing for AWS Bedrock AgentCore
+## AWS Bedrock AgentCore Integrations
+
+AWS Bedrock AgentCore provides a set of managed services that integrate natively with Strands Agents to build, deploy, and operate production-grade AI agents:
+
+- **[Runtime](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/agents-tools-runtime.html)** — Use this to host and run your Strands agent in production without managing infrastructure; the runtime handles invocation, session isolation, and scaling automatically.
+- **[Memory](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/memory.html)** — Use this so your agent can recall what happened in past conversations and accumulate user-specific knowledge over time, going beyond the context window of a single session.
+- **[Gateway](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway.html)** — Use this to give your agent access to external APIs and services as MCP tools, without writing custom integration code or handling authentication per tool.
+- **[Identity](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/identity.html)** — Use this so your agent can act on behalf of a user or assume an IAM role to call AWS services and third-party APIs securely, with credentials managed outside of agent code.
+- **[Code Interpreter](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/code-interpreter-tool.html)** — Use this when your agent needs to generate and run code as part of its reasoning, such as data analysis, computation, or file processing, in a safe isolated environment.
+- **[Browser](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/browser-tool.html)** — Use this when your agent must interact with web-based applications or extract information from sites that require navigation, login, or form submission.
+- **[Observability](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/observability.html)** — Use this to trace every step your agent takes during execution, diagnose failures, and monitor latency and tool usage in production.
+- **[Evaluations](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/evaluations.html)** — Use this to measure and compare your agent's response quality and tool-use accuracy against defined test cases before or after deploying changes.
+- **[Policy](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/policy.html)** — Use this to enforce boundaries on what your agent is allowed to do, restricting which tools it can invoke or which data it can access based on explicit rules.
+
+### Developing for AWS Bedrock AgentCore
 
 To deploy a Strands agent to the **Amazon Bedrock AgentCore Runtime**, you typically follow these steps:
 
